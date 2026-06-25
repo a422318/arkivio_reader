@@ -1,0 +1,22 @@
+# Local build output.
+.dart_tool/
+.packages
+*.iml
+build/
+example/.dart_tool/
+example/build/
+
+# Foliate development files that are not loaded by the packaged reader.
+assets/reader/foliate-js/eslint.config.js
+assets/reader/foliate-js/package-lock.json
+assets/reader/foliate-js/package.json
+assets/reader/foliate-js/rollup.config.js
+assets/reader/foliate-js/rollup/
+assets/reader/foliate-js/tests/
+assets/reader/foliate-js/vendor/pdfjs/*.map
+
+# The example app uses the EPUB sample. Keep the other sample formats out of
+# the published archive to avoid shipping unnecessary book files.
+example/assets/books/*.azw3
+example/assets/books/*.mobi
+example/assets/books/*.pdf

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'self'; style-src 'self' blob: 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' blob: data:; frame-src blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Mistdeer Reader</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: #fbfaf7;
+      color: #24211d;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body.reader-ready {
+      background: Canvas;
+      color: CanvasText;
+    }
+
+    #status {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      box-sizing: border-box;
+      background: #fbfaf7;
+      color: #5f564a;
+      text-align: center;
+    }
+
+    body.reader-ready #status {
+      display: none;
+    }
+
+    #reader {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    foliate-view {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    foliate-view::part(head),
+    foliate-view::part(foot) {
+      background-color: transparent !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      color: color-mix(in srgb, var(--mistdeer-reader-foreground, GrayText) 38%, transparent);
+      font-size: 12px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Reader bridge is starting...</div>
+  <main id="reader"></main>
+  <script src="./reader-bootstrap.js"></script>
+  <script type="module" src="./mistdeer-reader.js"></script>
+</body>
+</html>

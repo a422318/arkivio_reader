@@ -1,0 +1,38 @@
+name: arkivio_reader
+description: A Flutter ebook reader widget powered by WebView and Foliate, with local file or byte loading, progress, highlights, notes, and reader controls.
+version: 0.0.1
+topics:
+  - ebook
+  - reader
+  - epub
+  - pdf
+  - flutter
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  lucide_icons_flutter: ^3.1.14
+  shared_preferences: ^2.5.5
+  webview_all: ^1.0.3
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  assets:
+    - assets/reader/bg/
+    - assets/reader/reader.html
+    - assets/reader/reader-bootstrap.js
+    - assets/reader/mistdeer-reader.js
+    - assets/reader/foliate-js/
+    - assets/reader/foliate-js/ui/
+    - assets/reader/foliate-js/vendor/
+    - assets/reader/foliate-js/vendor/pdfjs/
+    - assets/reader/foliate-js/vendor/pdfjs/cmaps/
+    - assets/reader/foliate-js/vendor/pdfjs/standard_fonts/
