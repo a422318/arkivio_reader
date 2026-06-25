@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 export 'controller/reader_controller.dart';
+export 'models/reader_book_metadata.dart';
 export 'models/reader_chrome.dart';
 export 'models/reader_diagnostics.dart';
 export 'models/reader_options.dart';

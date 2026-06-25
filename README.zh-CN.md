@@ -130,10 +130,46 @@ await controller.goToFraction(0.5);
 controller.addListener(() {
   final state = controller.value;
   debugPrint('Progress: ${state.progress}');
+
+  final metadata = state.bookMetadata;
+  if (metadata != null) {
+    debugPrint('Author: ${metadata.author}');
+    final coverBytes = metadata.coverBytes;
+    // coverBytes 不为空时可以直接传给 Image.memory。
+  }
 });
 ```
 
 如果 controller 由父组件持有，请在父组件销毁时 dispose。
+
+`ReaderBookMetadata` 会在书籍打开完成后可用。它提供 `title`、`author`、
+`publisher`、`language`、`description`、`identifier`、`subject`、
+`published`、`modified` 等常见字段，封面可以通过 `coverDataUrl`、
+`coverMimeType` 和 `coverBytes` 获取。
+
+## 元数据预读取
+
+如果书架页或列表页需要在打开阅读器之前展示作者、封面等信息，可以使用
+`ReaderBookMetadataLoader`：
+
+```dart
+final metadata = await ReaderBookMetadataLoader.load(
+  context,
+  book: book,
+  bookBytesLoader: (book) async {
+    final data = await rootBundle.load('assets/books/${book.fileName}');
+    return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  },
+);
+
+final author = metadata.author;
+final coverBytes = metadata.coverBytes;
+```
+
+预读取器会临时挂载一个隐藏 WebView，并复用 `BookReaderPage` 同一套 Foliate
+解析器，所以调用时需要传入带有 `Overlay` 的 `BuildContext`。支持格式与阅读器
+一致：`epub`、`mobi`、`azw3`、`kf8`、`pdf`、`fb2`、`fb2.zip`、`fbz`、
+`cbz`、`txt`。同一份列表也可以通过 `readerSupportedBookFormats` 获取。
 
 ## 平台注意事项
 

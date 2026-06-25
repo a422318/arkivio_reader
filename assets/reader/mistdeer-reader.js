@@ -1,4 +1,4 @@
-import './foliate-js/view.js'
+import { makeBook } from './foliate-js/view.js'
 import { Overlayer } from './foliate-js/overlayer.js'
 import { searchMatcher } from './foliate-js/search.js'
 import { textWalker } from './foliate-js/text-walker.js'
@@ -196,6 +196,106 @@ const tocPayload = items => (items ?? []).map(item => ({
   href: item.href,
   children: tocPayload(item.subitems ?? item.children),
 }))
+
+const uniqueNonEmpty = values => {
+  const seen = new Set()
+  const result = []
+  for (const value of values) {
+    const text = String(value ?? '').trim()
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    result.push(text)
+  }
+  return result
+}
+
+const metadataText = value => {
+  if (value == null) return null
+  if (typeof value === 'string'
+      || typeof value === 'number'
+      || typeof value === 'boolean') {
+    const text = String(value).trim()
+    return text || null
+  }
+  if (Array.isArray(value)) {
+    const text = uniqueNonEmpty(value.map(metadataText).filter(Boolean)).join(', ')
+    return text || null
+  }
+  if (typeof value === 'object') {
+    if (value.name != null) return metadataText(value.name)
+    if (value.value != null) return metadataText(value.value)
+    if (value.label != null) return metadataText(value.label)
+    const preferredKeys = ['zh-CN', 'zh-Hans', 'zh', 'en', 'x-default']
+    for (const key of preferredKeys) {
+      if (value[key] != null) return metadataText(value[key])
+    }
+    const key = Object.keys(value).find(item =>
+      value[item] != null && !['role', 'sortAs', 'position'].includes(item))
+    return key ? metadataText(value[key]) : null
+  }
+  return null
+}
+
+const metadataPayload = (foliateBook, requestedBook) => {
+  const metadata = foliateBook?.metadata ?? {}
+  return {
+    title: metadataText(metadata.title) || metadataText(requestedBook?.title)
+      || metadataText(requestedBook?.fileName),
+    author: metadataText(metadata.author ?? metadata.creator),
+    publisher: metadataText(metadata.publisher),
+    language: metadataText(metadata.language),
+    description: metadataText(metadata.description),
+    identifier: metadataText(metadata.identifier),
+    subject: metadataText(metadata.subject),
+    source: metadataText(metadata.source),
+    rights: metadataText(metadata.rights),
+    published: metadataText(metadata.published),
+    modified: metadataText(metadata.modified),
+    coverDataUrl: null,
+  }
+}
+
+const withTimeout = (promise, ms, fallback = null) => new Promise(resolve => {
+  const timer = setTimeout(() => resolve(fallback), ms)
+  Promise.resolve(promise).then(value => {
+    clearTimeout(timer)
+    resolve(value)
+  }, error => {
+    clearTimeout(timer)
+    console.warn('Reader metadata extraction failed', error)
+    resolve(fallback)
+  })
+})
+
+const blobToDataURL = blob => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(reader.result)
+  reader.onerror = () => reject(reader.error)
+  reader.readAsDataURL(blob)
+})
+
+const coverDataUrlPayload = async foliateBook => {
+  try {
+    const blob = await withTimeout(foliateBook?.getCover?.(), 2000)
+    if (!blob) return null
+    if (typeof blob.size === 'number' && blob.size > 4 * 1024 * 1024) {
+      console.warn('Skipping oversized book cover payload')
+      return null
+    }
+    return await withTimeout(blobToDataURL(blob), 2000)
+  } catch (error) {
+    console.warn('Failed to extract book cover', error)
+    return null
+  }
+}
+
+const bookFileFromChunks = book => {
+  const bytes = decodeBase64(chunks.join(''))
+  chunks = []
+  return new File([bytes], book.fileName || 'book', {
+    type: book.mimeType || 'application/octet-stream',
+  })
+}
 
 const post = message => {
   if (bootstrap?.post) bootstrap.post(message)
@@ -1316,24 +1416,41 @@ window.MistdeerReaderBridge = {
   appendBookChunk(chunk) {
     chunks.push(chunk)
   },
+  async loadMetadata() {
+    try {
+      const book = currentBook ?? {}
+      const file = bookFileFromChunks(book)
+      const parsedBook = await makeBook(file)
+      const metadata = metadataPayload(parsedBook, book)
+      if (book.includeCover !== false) {
+        metadata.coverDataUrl = await coverDataUrlPayload(parsedBook)
+      }
+      post({
+        type: 'metadataLoaded',
+        metadata,
+      })
+    } catch (error) {
+      console.error(error)
+      post({ type: 'error', message: error?.message || String(error) })
+    }
+  },
   async finishBook() {
     try {
       const book = currentBook ?? {}
-      const bytes = decodeBase64(chunks.join(''))
-      chunks = []
-      const file = new File([bytes], book.fileName || 'book', {
-        type: book.mimeType || 'application/octet-stream',
-      })
+      const file = bookFileFromChunks(book)
       const nextView = setupView()
       await nextView.open(file)
       applyRendererSettings()
       await nextView.init({ showTextStart: true })
       await restoreLocation(book.locatorJson)
       showReader()
+      const metadata = metadataPayload(nextView.book, book)
+      metadata.coverDataUrl = await coverDataUrlPayload(nextView.book)
       post({
         type: 'loaded',
         title: book.title,
         fileName: book.fileName,
+        metadata,
         toc: tocPayload(nextView.book?.toc),
       })
     } catch (error) {

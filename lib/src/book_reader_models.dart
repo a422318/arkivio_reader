@@ -1,34 +1,5 @@
 part of 'book_reader_page.dart';
 
-String _bookMimeType(String? format, {String? fileName, String? filePath}) {
-  final normalized = format?.trim().toLowerCase();
-  final inferred = normalized?.isNotEmpty == true
-      ? normalized
-      : _bookExtension(fileName) ?? _bookExtension(filePath);
-  return switch (inferred) {
-    'epub' => 'application/epub+zip',
-    'mobi' => 'application/x-mobipocket-ebook',
-    'azw3' => 'application/vnd.amazon.ebook',
-    'fb2' => 'application/x-fictionbook+xml',
-    'cbz' => 'application/vnd.comicbook+zip',
-    'pdf' => 'application/pdf',
-    'txt' || 'text' => 'text/plain',
-    _ => 'application/octet-stream',
-  };
-}
-
-String? _bookExtension(String? path) {
-  if (path == null || path.trim().isEmpty) {
-    return null;
-  }
-  final name = path.trim().split(RegExp(r'[/\\]')).last;
-  final dot = name.lastIndexOf('.');
-  if (dot < 0 || dot == name.length - 1) {
-    return null;
-  }
-  return name.substring(dot + 1).toLowerCase();
-}
-
 enum _ReaderPanel {
   toc(LucideIcons.listTree, '目录'),
   annotations(LucideIcons.highlighter, '批注'),

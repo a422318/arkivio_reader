@@ -134,10 +134,47 @@ await controller.goToFraction(0.5);
 controller.addListener(() {
   final state = controller.value;
   debugPrint('Progress: ${state.progress}');
+
+  final metadata = state.bookMetadata;
+  if (metadata != null) {
+    debugPrint('Author: ${metadata.author}');
+    final coverBytes = metadata.coverBytes;
+    // Use coverBytes with Image.memory when it is not null.
+  }
 });
 ```
 
 Dispose controllers you own when the parent widget is disposed.
+
+`ReaderBookMetadata` is available after the book finishes opening. It exposes
+common fields such as `title`, `author`, `publisher`, `language`,
+`description`, `identifier`, `subject`, `published`, `modified`, and optional
+cover data through `coverDataUrl`, `coverMimeType`, and `coverBytes`.
+
+## Metadata Preloading
+
+Use `ReaderBookMetadataLoader` when a list or library page needs metadata
+before opening the reader:
+
+```dart
+final metadata = await ReaderBookMetadataLoader.load(
+  context,
+  book: book,
+  bookBytesLoader: (book) async {
+    final data = await rootBundle.load('assets/books/${book.fileName}');
+    return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  },
+);
+
+final author = metadata.author;
+final coverBytes = metadata.coverBytes;
+```
+
+The loader uses a temporary hidden WebView and the same Foliate parser as
+`BookReaderPage`, so it must be called with a `BuildContext` that has an
+`Overlay`. It supports the same local formats as the reader:
+`epub`, `mobi`, `azw3`, `kf8`, `pdf`, `fb2`, `fb2.zip`, `fbz`, `cbz`, and
+`txt`. The same list is available as `readerSupportedBookFormats`.
 
 ## Platform Notes
 

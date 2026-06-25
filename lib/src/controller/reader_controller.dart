@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/reader_book_metadata.dart';
 import '../models/reader_chrome.dart';
 import '../models/reader_settings.dart';
 
@@ -13,6 +14,7 @@ class ReaderState {
     this.openPanel,
     this.progress = 0,
     this.chapterHref,
+    this.bookMetadata,
     this.tocItems = const [],
     this.selectedTocIndex = -1,
     this.annotations = const [],
@@ -32,6 +34,7 @@ class ReaderState {
   final ReaderPanel? openPanel;
   final double progress;
   final String? chapterHref;
+  final ReaderBookMetadata? bookMetadata;
   final List<ReaderTocEntry> tocItems;
   final int selectedTocIndex;
   final List<ReaderAnnotationEntry> annotations;
@@ -53,6 +56,8 @@ class ReaderState {
     bool clearOpenPanel = false,
     double? progress,
     String? chapterHref,
+    ReaderBookMetadata? bookMetadata,
+    bool clearBookMetadata = false,
     List<ReaderTocEntry>? tocItems,
     int? selectedTocIndex,
     List<ReaderAnnotationEntry>? annotations,
@@ -72,6 +77,9 @@ class ReaderState {
       openPanel: clearOpenPanel ? null : openPanel ?? this.openPanel,
       progress: progress ?? this.progress,
       chapterHref: chapterHref ?? this.chapterHref,
+      bookMetadata: clearBookMetadata
+          ? null
+          : bookMetadata ?? this.bookMetadata,
       tocItems: tocItems ?? this.tocItems,
       selectedTocIndex: selectedTocIndex ?? this.selectedTocIndex,
       annotations: annotations ?? this.annotations,

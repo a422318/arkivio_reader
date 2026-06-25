@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:webview_all/webview_all.dart';
 
+import 'book_file_utils.dart';
 import 'book_reader_asset_server.dart';
 import 'reader_api.dart';
 
@@ -133,6 +134,7 @@ class _BookReaderPageState extends State<BookReaderPage>
   _ReaderPanel _selectedPanel = _ReaderPanel.toc;
   ReaderSettings _readerSettings = const ReaderSettings();
   final DateTime _readingStartedAt = DateTime.now();
+  ReaderBookMetadata? _bookMetadata;
   List<_ReaderTocItem> _tocItems = const [];
   String? _chapterHref;
   double _readingProgress = 0;
@@ -283,6 +285,7 @@ class _BookReaderPageState extends State<BookReaderPage>
         openPanel: _openReaderPanel,
         progress: _readingProgress,
         chapterHref: _chapterHref,
+        bookMetadata: _bookMetadata,
         tocItems: [
           for (final item in _tocItems)
             ReaderTocEntry(
@@ -642,6 +645,7 @@ class _BookReaderPageState extends State<BookReaderPage>
         _backgroundVisible = false;
         _settingsVisible = false;
         _autoPaging = false;
+        _bookMetadata = null;
         _tocItems = const [];
         _chapterHref = null;
         _readingProgress = 0;
@@ -674,6 +678,7 @@ class _BookReaderPageState extends State<BookReaderPage>
       _error = null;
       _pendingLocatorJson = null;
       _bookSent = false;
+      _bookMetadata = null;
       _readerSettings = _settingsForEnabledFeatures(
         widget.options.settings.initial,
       );
@@ -822,7 +827,7 @@ class _BookReaderPageState extends State<BookReaderPage>
       'title': widget.book.title ?? widget.book.fileName,
       'format': widget.book.format,
       'fileName': widget.book.fileName,
-      'mimeType': _bookMimeType(
+      'mimeType': readerBookMimeType(
         widget.book.format,
         fileName: widget.book.fileName,
         filePath: widget.book.filePath,
@@ -869,6 +874,15 @@ class _BookReaderPageState extends State<BookReaderPage>
     return file.readAsBytes();
   }
 
+  ReaderBookMetadata? _bookMetadataFromMessage(Object? value) {
+    if (value is! Map) {
+      return null;
+    }
+    return ReaderBookMetadata.fromMap({
+      for (final entry in value.entries) entry.key.toString(): entry.value,
+    });
+  }
+
   Future<void> _handleReaderMessage(String message) async {
     try {
       final decoded = jsonDecode(message);
@@ -884,10 +898,12 @@ class _BookReaderPageState extends State<BookReaderPage>
       if (type == 'loaded') {
         _bookOpenTimer?.cancel();
         final toc = decoded['toc'];
+        final metadata = _bookMetadataFromMessage(decoded['metadata']);
         if (mounted) {
           setState(() {
             _loading = false;
             _error = null;
+            _bookMetadata = metadata;
             _tocItems = _ReaderTocItem.parseList(toc);
             _textSelection = null;
             _textSelectionDragging = false;
@@ -1225,7 +1241,7 @@ class _BookReaderPageState extends State<BookReaderPage>
     final x = rawX.toDouble().clamp(0, width);
     if (_readerSettings.flow != ReaderFlow.paginated) {
       final isPdf =
-          _bookMimeType(
+          readerBookMimeType(
             widget.book.format,
             fileName: widget.book.fileName,
             filePath: widget.book.filePath,
