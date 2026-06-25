@@ -1063,11 +1063,52 @@ ${doc.querySelector('parsererror').innerText}`)
     isExternal(uri) {
         return isExternal(uri)
     }
+    async #loadManifestBlob(item) {
+        if (!item?.href) return null
+        const data = await (this.#loader?.loadBlob?.(item.href) ?? this.loadBlob(item.href))
+        if (!data) return null
+        return new Blob([data], { type: item.mediaType })
+    }
+    #isImageItem(item) {
+        return item?.mediaType?.startsWith?.('image/')
+    }
+    #coverItemByName() {
+        return this.resources?.manifest?.find(item =>
+            this.#isImageItem(item)
+            && /(^|[/_.-])cover([/_.-]|$)|cover-image|封面/i
+                .test(`${item.id ?? ''} ${item.href ?? ''}`))
+    }
+    async #coverImageFromDocument(item) {
+        const doc = await this.#loadXML(item.href)
+        const image = doc?.querySelector('img[src], image[href]')
+            ?? Array.from(doc?.getElementsByTagName('image') ?? [])
+                .find(el => el.getAttributeNS(NS.XLINK, 'href'))
+        const src = image?.getAttribute('src')
+            ?? image?.getAttribute('href')
+            ?? image?.getAttributeNS?.(NS.XLINK, 'href')
+        if (!src) return null
+        const href = resolveURL(src, item.href).split('#')[0]
+        const imageItem = this.resources.getItemByHref(href)
+        return this.#isImageItem(imageItem) ? imageItem : null
+    }
     async getCover() {
         const cover = this.resources?.cover
-        return cover?.href
-            ? new Blob([await this.loadBlob(cover.href)], { type: cover.mediaType })
-            : null
+            ?? this.resources?.getItemByProperty?.('cover-image')
+            ?? this.#coverItemByName()
+        if (!cover?.href) {
+            console.warn('EPUB cover not found in manifest metadata')
+            return null
+        }
+        try {
+            if (this.#isImageItem(cover)) return this.#loadManifestBlob(cover)
+            const imageItem = await this.#coverImageFromDocument(cover)
+            if (imageItem) return this.#loadManifestBlob(imageItem)
+            console.warn('EPUB cover item is not an image and no image was found', cover)
+            return null
+        } catch (error) {
+            console.warn('Failed to load EPUB cover', error)
+            return null
+        }
     }
     async getCalibreBookmarks() {
         const txt = await this.loadText('META-INF/calibre_bookmarks.txt')

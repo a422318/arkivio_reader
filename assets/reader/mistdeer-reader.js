@@ -255,14 +255,17 @@ const metadataPayload = (foliateBook, requestedBook) => {
   }
 }
 
-const withTimeout = (promise, ms, fallback = null) => new Promise(resolve => {
-  const timer = setTimeout(() => resolve(fallback), ms)
+const withTimeout = (promise, ms, fallback = null, label = 'operation') => new Promise(resolve => {
+  const timer = setTimeout(() => {
+    console.warn(`Reader metadata ${label} timed out after ${ms}ms`)
+    resolve(fallback)
+  }, ms)
   Promise.resolve(promise).then(value => {
     clearTimeout(timer)
     resolve(value)
   }, error => {
     clearTimeout(timer)
-    console.warn('Reader metadata extraction failed', error)
+    console.warn(`Reader metadata ${label} failed`, error)
     resolve(fallback)
   })
 })
@@ -276,13 +279,22 @@ const blobToDataURL = blob => new Promise((resolve, reject) => {
 
 const coverDataUrlPayload = async foliateBook => {
   try {
-    const blob = await withTimeout(foliateBook?.getCover?.(), 2000)
-    if (!blob) return null
+    if (typeof foliateBook?.getCover !== 'function') {
+      console.warn('Book cover unavailable: getCover is not implemented')
+      return null
+    }
+    const blob = await withTimeout(foliateBook.getCover(), 8000, null, 'cover extraction')
+    if (!blob) {
+      console.warn('Book cover unavailable: getCover returned null')
+      return null
+    }
     if (typeof blob.size === 'number' && blob.size > 4 * 1024 * 1024) {
       console.warn('Skipping oversized book cover payload')
       return null
     }
-    return await withTimeout(blobToDataURL(blob), 2000)
+    const dataUrl = await withTimeout(blobToDataURL(blob), 8000, null, 'cover encoding')
+    if (!dataUrl) console.warn('Book cover unavailable: cover encoding returned null')
+    return dataUrl
   } catch (error) {
     console.warn('Failed to extract book cover', error)
     return null

@@ -31,6 +31,9 @@ class _BookLibraryPage extends StatefulWidget {
 
 class _BookLibraryPageState extends State<_BookLibraryPage> {
   final _readerStore = _InMemoryReaderStore();
+  final Map<String, ReaderBookMetadata> _metadataByBookId = {};
+  final Set<String> _loadingMetadataBookIds = {};
+  final Map<String, String> _metadataErrorsByBookId = {};
 
   void _openBook(_ExampleBook book) {
     Navigator.of(context).push(
@@ -38,6 +41,54 @@ class _BookLibraryPageState extends State<_BookLibraryPage> {
         builder: (_) => _ReaderExamplePage(book: book, store: _readerStore),
       ),
     );
+  }
+
+  Future<void> _loadMetadata(_ExampleBook book) async {
+    if (_loadingMetadataBookIds.contains(book.id)) {
+      return;
+    }
+    setState(() {
+      _loadingMetadataBookIds.add(book.id);
+      _metadataErrorsByBookId.remove(book.id);
+    });
+    try {
+      final metadata = await ReaderBookMetadataLoader.load(
+        context,
+        book: ReaderBookItem(
+          id: book.id,
+          title: book.title,
+          format: book.format,
+          fileName: book.fileName,
+        ),
+        metadataTimeout: const Duration(seconds: 120),
+        bookBytesLoader: (_) async {
+          final data = await rootBundle.load(book.assetPath);
+          return data.buffer.asUint8List(
+            data.offsetInBytes,
+            data.lengthInBytes,
+          );
+        },
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _metadataByBookId[book.id] = metadata;
+      });
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _metadataErrorsByBookId[book.id] = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingMetadataBookIds.remove(book.id);
+        });
+      }
+    }
   }
 
   @override
@@ -66,7 +117,13 @@ class _BookLibraryPageState extends State<_BookLibraryPage> {
                   for (final book in _exampleBooks) ...[
                     _BookListButton(
                       book: book,
+                      metadata: _metadataByBookId[book.id],
+                      metadataLoading: _loadingMetadataBookIds.contains(
+                        book.id,
+                      ),
+                      metadataError: _metadataErrorsByBookId[book.id],
                       onPressed: () => _openBook(book),
+                      onMetadataPressed: () => _loadMetadata(book),
                     ),
                     if (book != _exampleBooks.last) const SizedBox(height: 12),
                   ],
@@ -81,10 +138,21 @@ class _BookLibraryPageState extends State<_BookLibraryPage> {
 }
 
 class _BookListButton extends StatelessWidget {
-  const _BookListButton({required this.book, required this.onPressed});
+  const _BookListButton({
+    required this.book,
+    required this.onPressed,
+    required this.onMetadataPressed,
+    this.metadata,
+    this.metadataLoading = false,
+    this.metadataError,
+  });
 
   final _ExampleBook book;
+  final ReaderBookMetadata? metadata;
+  final bool metadataLoading;
+  final String? metadataError;
   final VoidCallback onPressed;
+  final VoidCallback onMetadataPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -99,35 +167,108 @@ class _BookListButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              SizedBox(
-                width: 58,
-                child: Text(
+              _BookCoverPreview(book: book, metadata: metadata),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      metadata?.title ?? book.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      metadataError ??
+                          metadata?.author ??
+                          book.format.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: metadataError == null
+                            ? colors.onSurfaceVariant
+                            : colors.error,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox.square(
+                dimension: 40,
+                child: metadataLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : IconButton(
+                        tooltip: '预读取元数据',
+                        onPressed: onMetadataPressed,
+                        icon: Icon(
+                          Icons.image_search,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+              ),
+              Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BookCoverPreview extends StatelessWidget {
+  const _BookCoverPreview({required this.book, this.metadata});
+
+  final _ExampleBook book;
+  final ReaderBookMetadata? metadata;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final coverBytes = metadata?.coverBytes;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        width: 44,
+        height: 58,
+        color: colors.surface,
+        alignment: Alignment.center,
+        child: coverBytes == null
+            ? Text(
+                book.format.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              )
+            : Image.memory(
+                coverBytes,
+                width: 44,
+                height: 58,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Text(
                   book.format.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: colors.primary,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  book.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
-            ],
-          ),
-        ),
       ),
     );
   }

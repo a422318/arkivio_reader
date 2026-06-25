@@ -634,9 +634,20 @@ export class MOBI extends PDB {
         const { exth } = this.headers
         const offset = exth?.coverOffset < 0xffffffff ? exth?.coverOffset
             : exth?.thumbnailOffset < 0xffffffff ? exth?.thumbnailOffset : null
-        if (offset != null) {
+        if (offset == null) {
+            console.warn('MOBI cover not found: EXTH coverOffset/thumbnailOffset is missing')
+            return null
+        }
+        try {
             const buf = await this.loadResource(offset)
+            if (!buf?.byteLength) {
+                console.warn('MOBI cover resource is empty', { offset })
+                return null
+            }
             return new Blob([buf])
+        } catch (error) {
+            console.warn('Failed to load MOBI cover resource', { offset, error })
+            return null
         }
     }
 }
